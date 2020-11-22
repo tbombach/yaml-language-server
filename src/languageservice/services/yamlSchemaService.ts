@@ -23,6 +23,7 @@ import { convertSimple2RegExpPattern } from '../utils/strings';
 import { SingleYAMLDocument } from '../parser/yamlParser07';
 import { JSONDocument } from '../parser/jsonParser07';
 import * as yaml from 'js-yaml';
+import { ASTNode } from '../jsonASTTypes';
 
 const localize = nls.loadMessageBundle();
 
@@ -274,6 +275,12 @@ export class YAMLSchemaService extends JSONSchemaService {
         seen[schemaFromModeline] = true;
       }
 
+      const schemaFromProperty = this.getSchemaFromProperty(doc);
+      if (schemaFromProperty !== undefined) {
+        schemas.push(schemaFromProperty);
+        seen[schemaFromProperty] = true;
+      }
+
       for (const entry of this.filePatternAssociations) {
         if (entry.matchesPattern(resource)) {
           for (const schemaId of entry.getURIs()) {
@@ -361,6 +368,34 @@ export class YAMLSchemaService extends JSONSchemaService {
     } else {
       return resolveSchema();
     }
+  }
+
+  /**
+   * Retrieve schema if declared in the file with the $schema property on the root node
+   * Public for testing purpose, not part of the API.
+   * @param doc
+   */
+  public getSchemaFromProperty(doc: SingleYAMLDocument | JSONDocument): string {
+    if (doc instanceof SingleYAMLDocument && doc.root.children != undefined) {
+      const schemaUrls = [];
+      // Look at each child under root to see if it's the '$schema' property
+      doc.root.children.forEach((node: ASTNode) => {
+        if (node.type == 'property' && node.valueNode?.location == '$schema') {
+          const url = node.valueNode.value;
+          if (typeof url == 'string') {
+            // Remove quotes and add it to the schemas found for this document
+            schemaUrls.push(url.replace(/['"]/, ''));
+          }
+        }
+      });
+      if (schemaUrls.length > 0) {
+        if (schemaUrls.length > 1) {
+          console.log('Several $schema attributes have been found on the root node. The first one will be picked.');
+        }
+        return schemaUrls[0];
+      }
+    }
+    return undefined;
   }
 
   /**

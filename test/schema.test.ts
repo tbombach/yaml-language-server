@@ -593,4 +593,79 @@ suite('JSON Schema', () => {
       assert.equal(service.getSchemaFromModeline(yamlDoc), expectedResult);
     }
   });
+
+  describe('Test getSchemaFromProperty', function () {
+    test('simple case', async () => {
+      const document = `---
+$schema: expectedUrl
+`;
+      checkReturnSchemaUrl(document, 'expectedUrl');
+    });
+
+    test('case with other tags', async () => {
+      const document = `---
+id: foo
+$schema: expectedUrl
+description: object
+type: object,
+required: [
+  'abc',
+  'def'
+]
+`;
+      checkReturnSchemaUrl(document, 'expectedUrl');
+    });
+
+    test('no schema returned if no $schema property', async () => {
+      const document = `---
+$othertag: url1
+`;
+      checkReturnSchemaUrl(document, undefined);
+    });
+
+    test('only first schema returned if multiple appear', async () => {
+      const document = `---
+$schema: url1
+$schema: url2
+`;
+      checkReturnSchemaUrl(document, 'url1');
+    });
+
+    test('only return $schema properties that are defined at root', async () => {
+      const document = `---
+$test: url1
+  $schema: url2
+`;
+      checkReturnSchemaUrl(document, undefined);
+    });
+
+    test('allow schema urls in quotes', async () => {
+      const document = `---
+$schema: 'url1'
+`;
+      checkReturnSchemaUrl(document, 'url1');
+    });
+
+    test('allow schema urls in double quotes', async () => {
+      const document = `---
+$schema: "url1"
+`;
+      checkReturnSchemaUrl(document, 'url1');
+    });
+
+    test('ensure schema urls with url characters are returned', async () => {
+      const document = `---
+$schema: 'http://example.com/example_schema.json'
+`;
+      checkReturnSchemaUrl(document, 'http://example.com/example_schema.json');
+    });
+
+    function checkReturnSchemaUrl(file: string, expectedResult: string): void {
+      const service = new SchemaService.YAMLSchemaService(schemaRequestServiceForURL, workspaceContext);
+      const yamlDoc = parser.parse(file);
+      yamlDoc.documents.forEach((doc: parser.SingleYAMLDocument) => {
+        assert.equal(service.getSchemaFromProperty(doc), expectedResult);
+      });
+    }
+  });
 });
